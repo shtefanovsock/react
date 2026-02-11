@@ -15,14 +15,7 @@
   "function" ===
     typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart &&
   __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-var dynamicFeatureFlags = require("ReactFeatureFlags"),
-  enableTransitionTracing = dynamicFeatureFlags.enableTransitionTracing,
-  renameElementSymbol = dynamicFeatureFlags.renameElementSymbol,
-  enableViewTransition = dynamicFeatureFlags.enableViewTransition,
-  REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"),
-  REACT_ELEMENT_TYPE = renameElementSymbol
-    ? Symbol.for("react.transitional.element")
-    : REACT_LEGACY_ELEMENT_TYPE,
+var REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"),
   REACT_PORTAL_TYPE = Symbol.for("react.portal"),
   REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"),
   REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"),
@@ -92,7 +85,10 @@ assign(pureComponentPrototype, Component.prototype);
 pureComponentPrototype.isPureReactComponent = !0;
 var isArrayImpl = Array.isArray;
 function noop() {}
-var ReactSharedInternals = { H: null, A: null, T: null, S: null },
+var dynamicFeatureFlags = require("ReactFeatureFlags"),
+  enableTransitionTracing = dynamicFeatureFlags.enableTransitionTracing,
+  enableViewTransition = dynamicFeatureFlags.enableViewTransition,
+  ReactSharedInternals = { H: null, A: null, T: null, S: null },
   hasOwnProperty = Object.prototype.hasOwnProperty;
 function ReactElement(type, key, props) {
   var refProp = props.ref;
@@ -292,25 +288,36 @@ function mapChildren(children, func, context) {
 }
 function lazyInitializer(payload) {
   if (-1 === payload._status) {
-    var ctor = payload._result;
-    ctor = ctor();
-    ctor.then(
+    var ctor = payload._result,
+      thenable = ctor();
+    thenable.then(
       function (moduleObject) {
         if (0 === payload._status || -1 === payload._status)
-          (payload._status = 1), (payload._result = moduleObject);
+          (payload._status = 1),
+            (payload._result = moduleObject),
+            void 0 === thenable.status &&
+              ((thenable.status = "fulfilled"),
+              (thenable.value = moduleObject));
       },
       function (error) {
         if (0 === payload._status || -1 === payload._status)
-          (payload._status = 2), (payload._result = error);
+          (payload._status = 2),
+            (payload._result = error),
+            void 0 === thenable.status &&
+              ((thenable.status = "rejected"), (thenable.reason = error));
       }
     );
-    -1 === payload._status && ((payload._status = 0), (payload._result = ctor));
+    -1 === payload._status &&
+      ((payload._status = 0), (payload._result = thenable));
   }
   if (1 === payload._status) return payload._result.default;
   throw payload._result;
 }
 function useMemoCache(size) {
   return ReactSharedInternals.H.useMemoCache(size);
+}
+function useEffectEvent(callback) {
+  return ReactSharedInternals.H.useEffectEvent(callback);
 }
 var reportGlobalError =
   "function" === typeof reportError
@@ -381,52 +388,56 @@ function addTransitionType(type) {
     } else startTransition(addTransitionType.bind(null, type));
   }
 }
-var ReactCompilerRuntime = { __proto__: null, c: useMemoCache };
-exports.Children = {
-  map: mapChildren,
-  forEach: function (children, forEachFunc, forEachContext) {
-    mapChildren(
-      children,
-      function () {
-        forEachFunc.apply(this, arguments);
-      },
-      forEachContext
-    );
-  },
-  count: function (children) {
-    var n = 0;
-    mapChildren(children, function () {
-      n++;
-    });
-    return n;
-  },
-  toArray: function (children) {
-    return (
-      mapChildren(children, function (child) {
-        return child;
-      }) || []
-    );
-  },
-  only: function (children) {
-    if (!isValidElement(children))
-      throw Error(
-        "React.Children.only expected to receive a single React element child."
+var ReactCompilerRuntime = { __proto__: null, c: useMemoCache },
+  Children = {
+    map: mapChildren,
+    forEach: function (children, forEachFunc, forEachContext) {
+      mapChildren(
+        children,
+        function () {
+          forEachFunc.apply(this, arguments);
+        },
+        forEachContext
       );
-    return children;
-  }
-};
+    },
+    count: function (children) {
+      var n = 0;
+      mapChildren(children, function () {
+        n++;
+      });
+      return n;
+    },
+    toArray: function (children) {
+      return (
+        mapChildren(children, function (child) {
+          return child;
+        }) || []
+      );
+    },
+    only: function (children) {
+      if (!isValidElement(children))
+        throw Error(
+          "React.Children.only expected to receive a single React element child."
+        );
+      return children;
+    }
+  };
+exports.Activity = REACT_ACTIVITY_TYPE;
+exports.Children = Children;
 exports.Component = Component;
 exports.Fragment = REACT_FRAGMENT_TYPE;
 exports.Profiler = REACT_PROFILER_TYPE;
 exports.PureComponent = PureComponent;
 exports.StrictMode = REACT_STRICT_MODE_TYPE;
 exports.Suspense = REACT_SUSPENSE_TYPE;
+exports.ViewTransition = REACT_VIEW_TRANSITION_TYPE;
 exports.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE =
   ReactSharedInternals;
 exports.__COMPILER_RUNTIME = ReactCompilerRuntime;
 exports.act = function () {
   throw Error("act(...) is not supported in production builds of React.");
 };
+exports.addTransitionType = addTransitionType;
 exports.c = useMemoCache;
 exports.cache = function (fn) {
   return function () {
@@ -504,9 +515,7 @@ exports.createElement = function (type, config, children) {
 exports.createRef = function () {
   return { current: null };
 };
-exports.experimental_useEffectEvent = function (callback) {
-  return ReactSharedInternals.H.useEffectEvent(callback);
-};
+exports.experimental_useEffectEvent = useEffectEvent;
 exports.forwardRef = function (render) {
   return { $$typeof: REACT_FORWARD_REF_TYPE, render: render };
 };
@@ -563,6 +572,7 @@ exports.useDeferredValue = function (value, initialValue) {
 exports.useEffect = function (create, deps) {
   return ReactSharedInternals.H.useEffect(create, deps);
 };
+exports.useEffectEvent = useEffectEvent;
 exports.useId = function () {
   return ReactSharedInternals.H.useId();
 };
@@ -604,7 +614,7 @@ exports.useSyncExternalStore = function (
 exports.useTransition = function () {
   return ReactSharedInternals.H.useTransition();
 };
-exports.version = "19.2.0-www-modern-7a36dfed-20250816";
+exports.version = "19.3.0-www-modern-8374c2ab-20260211";
 "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ &&
   "function" ===
     typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop &&
